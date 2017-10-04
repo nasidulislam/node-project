@@ -13,6 +13,7 @@
   "author": "Ethan Brown <e@zepln.com>",
   "license": "GPL, MIT",
   "dependencies": {
+    "body-parser": "^1.18.2",
     "chai": "~1.9.1",
     "express": "~4.4.2",
     "express3-handlebars": "^0.5.2"
