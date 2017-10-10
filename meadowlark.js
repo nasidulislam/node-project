@@ -51,6 +51,9 @@ app.get('/tours/request-group-rate', function(req, res){
 app.get('/newsletter', function(req, res) {
     res.render('newsletter', {csrf: 'dummy CSRF value'});
 });
+app.get('/tours', function(req, res){
+	res.render('tours/tours-home');
+});
 
 app.post('/process', function(req, res){
     console.log('Form (from querystring): ' + req.query.form);
