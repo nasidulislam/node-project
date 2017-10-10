@@ -110,6 +110,20 @@ app.get('/contest/vacation-photo', function(req,res){
     });
 });
 
+app.get('/nursery-rhyme', function(req, res){
+	res.render('nursery-rhyme');
+});
+
+app.get('/data/nursery-rhyme', function(req, res){
+	res.json(
+        {
+            animal: 'squirrel',
+            bodyPart: 'tail',
+            adjective: 'bushy',
+            noun: 'heck'
+	});
+});
+
 // other server requests
 app.post('/process', function(req, res){
     console.log('Form (from querystring): ' + req.query.form);
