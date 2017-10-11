@@ -28,7 +28,11 @@ app.use(express.static(__dirname + '/public'));
 
 app.use(require('body-parser')());
 app.use(require('cookie-parser')(credentials.cookieSecret));
-app.use(require('express-session')());
+app.use(require('express-session')({
+    resave: false,
+    saveUninitialized: false,
+    secret: credentials.cookieSecret
+}));
 
 /* set 'showTests' context property if the querystring contains test=1 */
 app.use(function(req, res, next){
@@ -37,7 +41,9 @@ app.use(function(req, res, next){
 	next();
 });
 
-/* mocked weather data */
+/* begin Miscellaneous functions */
+
+// mocked weather data
 function getWeatherData(){
     return {
         locations: [
@@ -65,6 +71,16 @@ function getWeatherData(){
         ],
     };
 }
+
+// mocked NewsletterSignup
+function NewsletterSignup(){}
+NewsletterSignup.prototype.save = function(cb){
+	cb();
+};
+
+var VALID_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+/* end Miscellaneous functions */
 
 /* begin MIDDLEWARE setup */
 
@@ -144,6 +160,10 @@ app.get('/data/nursery-rhyme', function(req, res) {
 	});
 });
 
+app.get('/newsletter/archive', function(req, res) {
+    res.render('newsletter/archive');
+});
+
 /* end GET requests / server side routing */
 
 /* begin POST requests */
@@ -181,7 +201,7 @@ app.post('/newsletter', function(req, res) {
     email = req.body.email || '';
 
     // input validation
-    if(!email.match(email_regex)) {
+    if(!email.match(VALID_EMAIL_REGEX)) {
         if(req.xhr) return res.json({
             error: 'Invalid email address'
         });
