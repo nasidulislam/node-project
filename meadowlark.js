@@ -1,11 +1,14 @@
-var express = require('express');
-var fortune = require('./lib/fortune.js');
-var formidable = require('formidable');
+var express, formidable, app, handlebar,
+    fortune, credentials;
 
-var app = express();
+express = require('express');
+fortune = require('./lib/fortune.js');
+formidable = require('formidable');
+credentials = require('./credentials.js');
+app = express();
 
 // set up handlebars view engine
-var handlebars = require('express-handlebars').create({
+handlebars = require('express-handlebars').create({
     defaultLayout:'main',
     helpers: {
         section: function(name, options){
@@ -15,6 +18,7 @@ var handlebars = require('express-handlebars').create({
         }
     }
 });
+
 app.engine('handlebars', handlebars.engine);
 app.set('view engine', 'handlebars');
 
@@ -23,15 +27,17 @@ app.set('port', process.env.PORT || 3000);
 app.use(express.static(__dirname + '/public'));
 
 app.use(require('body-parser')());
+app.use(require('cookie-parser')(credentials.cookieSecret));
+app.use(require('express-session')());
 
-// set 'showTests' context property if the querystring contains test=1
+/* set 'showTests' context property if the querystring contains test=1 */
 app.use(function(req, res, next){
 	res.locals.showTests = app.get('env') !== 'production' &&
 		req.query.test === '1';
 	next();
 });
 
-// mocked weather data
+/* mocked weather data */
 function getWeatherData(){
     return {
         locations: [
@@ -60,33 +66,47 @@ function getWeatherData(){
     };
 }
 
-// middleware to add weather data to context
-app.use(function(req, res, next){
+/* begin MIDDLEWARE setup */
+
+// weather
+app.use(function(req, res, next) {
 	if(!res.locals.partials) res.locals.partials = {};
  	res.locals.partials.weatherContext = getWeatherData();
  	next();
 });
 
-// server side application routing
+// flash message
+app.use(function(req, res, next) {
+    // if there is a flash message, transfer it to context
+    // then clear the flash message
+    res.locals.flash = req.session.flash;
+    delete req.session.flash;
+    next();
+});
+
+/* end MIDDLEWARE setup */
+
+/* begin GET requests / server side routing */
+
 app.get('/', function(req, res) {
 	res.render('home');
 });
-app.get('/about', function(req,res){
+app.get('/about', function(req,res) {
 	res.render('about', {
 		fortune: fortune.getFortune(),
 		pageTestScript: '/qa/tests-about.js'
 	} );
 });
 
-app.get('/tours/hood-river', function(req, res){
+app.get('/tours/hood-river', function(req, res) {
 	res.render('tours/hood-river');
 });
 
-app.get('/tours/oregon-coast', function(req, res){
+app.get('/tours/oregon-coast', function(req, res) {
 	res.render('tours/oregon-coast');
 });
 
-app.get('/tours/request-group-rate', function(req, res){
+app.get('/tours/request-group-rate', function(req, res) {
 	res.render('tours/request-group-rate');
 });
 
@@ -94,15 +114,15 @@ app.get('/newsletter', function(req, res) {
     res.render('newsletter', {csrf: 'dummy CSRF value'});
 });
 
-app.get('/tours', function(req, res){
+app.get('/tours', function(req, res) {
 	res.render('tours/tours-home');
 });
 
-app.get('/thank-you', function(req, res){
+app.get('/thank-you', function(req, res) {
 	res.render('thank-you');
 });
 
-app.get('/contest/vacation-photo', function(req,res){
+app.get('/contest/vacation-photo', function(req,res) {
     var now = new Date();
     res.render('contest/vacation-photo', {
         year: now.getFullYear(),
@@ -110,11 +130,11 @@ app.get('/contest/vacation-photo', function(req,res){
     });
 });
 
-app.get('/nursery-rhyme', function(req, res){
+app.get('/nursery-rhyme', function(req, res) {
 	res.render('nursery-rhyme');
 });
 
-app.get('/data/nursery-rhyme', function(req, res){
+app.get('/data/nursery-rhyme', function(req, res) {
 	res.json(
         {
             animal: 'squirrel',
@@ -124,8 +144,11 @@ app.get('/data/nursery-rhyme', function(req, res){
 	});
 });
 
-// other server requests
-app.post('/process', function(req, res){
+/* end GET requests / server side routing */
+
+/* begin POST requests */
+
+app.post('/process', function(req, res) {
     console.log('Form (from querystring): ' + req.query.form);
     console.log('CSRF token (from hidden form field): ' + req.body._csrf);
     console.log('Name (from visible form field): ' + req.body.name);
@@ -139,7 +162,7 @@ app.post('/process', function(req, res){
     }
 });
 
-app.post('/contest/vacation-photo/:year/:month', function(req, res){
+app.post('/contest/vacation-photo/:year/:month', function(req, res) {
     var form = new formidable.IncomingForm();
     form.parse(req, function(err, fields, files){
         if(err) return res.redirect(303, '/error');
@@ -151,20 +174,75 @@ app.post('/contest/vacation-photo/:year/:month', function(req, res){
     });
 });
 
+app.post('/newsletter', function(req, res) {
+    var name, email;
+
+    name = req.body.name || '';
+    email = req.body.email || '';
+
+    // input validation
+    if(!email.match(email_regex)) {
+        if(req.xhr) return res.json({
+            error: 'Invalid email address'
+        });
+
+        req.session.flash = {
+            type: 'danger',
+            intro: 'Validation error !!',
+            message: 'The email address you entered was not valid'
+        };
+
+        return res.redirect(303, '/newsletter/archive');
+    };
+
+    new NewsletterSignup({
+        name: name,
+        email: email
+    }).save(function(err) {
+        if(err) {
+            if(req.xhr) return res.json({
+                error: 'Database error.'
+            });
+
+            req.session.flash = {
+                type: 'danger',
+                intro: 'Database error !!',
+                message: 'There was an error connecting to the database; /n Try again later.'
+            };
+
+            return res.redirect(303, '/newsletter/archive');
+        };
+
+        if(req.xhr) return res.json({
+            success: true
+        });
+
+        req.session.flash = {
+            type: 'success',
+            intro: 'Thank you !!',
+            message: 'You have successfully signed up for Meadowlark Travel newsletter'
+        };
+
+        return res.redirect(303, '/newsletter/archive');
+    });
+});
+
+/* end POST requests */
+
 // 404 catch-all handler (middleware)
-app.use(function(req, res, next){
+app.use(function(req, res, next) {
 	res.status(404);
 	res.render('404');
 });
 
 // 500 error handler (middleware)
-app.use(function(err, req, res, next){
+app.use(function(err, req, res, next) {
 	console.error(err.stack);
 	res.status(500);
 	res.render('500');
 });
 
-app.listen(app.get('port'), function(){
+app.listen(app.get('port'), function() {
   console.log( 'Express started on http://localhost:' +
     app.get('port') + '; press Ctrl-C to terminate.' );
 });
