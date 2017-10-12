@@ -1,10 +1,12 @@
 var express, formidable, app, handlebar,
-    fortune, credentials;
+    fortune, credentials, cartValidation;
 
 express = require('express');
 fortune = require('./lib/fortune.js');
 formidable = require('formidable');
 credentials = require('./credentials.js');
+cartValidation = require('./lib/cartValidation.js');
+
 app = express();
 
 // set up handlebars view engine
@@ -99,6 +101,12 @@ app.use(function(req, res, next) {
     delete req.session.flash;
     next();
 });
+
+// waiver
+app.use(cartValidation.checkWaivers);
+
+// check guest count
+app.use(cartValidation.checkGuestCounts);
 
 /* end MIDDLEWARE setup */
 
