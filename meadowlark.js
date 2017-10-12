@@ -154,22 +154,21 @@ app.get('/contest/vacation-photo', function(req,res) {
     });
 });
 
-app.get('/nursery-rhyme', function(req, res) {
+app.get('/nursery-rhyme', function(req, res){
 	res.render('nursery-rhyme');
 });
 
-app.get('/data/nursery-rhyme', function(req, res) {
-	res.json(
-        {
-            animal: 'squirrel',
-            bodyPart: 'tail',
-            adjective: 'bushy',
-            noun: 'heck'
+app.get('/data/nursery-rhyme', function(req, res){
+	res.json({
+		animal: 'gitquirrel',
+		bodyPart: 'tail',
+		adjective: 'bushy',
+		noun: 'heck',
 	});
 });
 
-app.get('/newsletter/archive', function(req, res) {
-    res.render('newsletter/archive');
+app.get('/newsletter', function(req, res){
+	res.render('newsletter');
 });
 
 /* end GET requests / server side routing */
