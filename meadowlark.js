@@ -220,9 +220,9 @@ app.get('/newsletter', function(req, res) {
     res.render('newsletter', {csrf: 'dummy CSRF value'});
 });
 
-app.get('/tours', function(req, res) {
-	res.render('tours/tours-home');
-});
+// app.get('/tours', function(req, res) {
+// 	res.render('tours/tours-home');
+// });
 
 app.get('/thank-you', function(req, res) {
 	res.render('thank-you');
@@ -255,6 +255,27 @@ app.get('/newsletter', function(req, res){
 
 app.get('/newsletter/archive', function(req, res){
 	res.render('newsletter/archive');
+});
+
+app.get('/tours/:tour', function(req, res, next){
+	Product.findOne({ category: 'tour', slug: req.params.tour }, function(err, tour){
+		if(err) return next(err);
+		if(!tour) return next();
+		res.render('tour', { tour: tour });
+	});
+});
+
+app.get('/adventures/:subcat/:name', function(req, res, next){
+	Product.findOne({ category: 'adventure', slug: req.params.subcat + '/' + req.params.name  }, function(err, adventure){
+		if(err) return next(err);
+		if(!adventure) return next();
+		res.render('adventure', { adventure: adventure });
+	});
+});
+
+app.get('/cart', function(req, res){
+	var cart = req.session.cart || (req.session.cart = []);
+	res.render('cart', { cart: cart });
 });
 
 /* end GET requests / server side routing */
@@ -351,10 +372,6 @@ app.post('/cart/add', function(req, res, next){
 		});
 		res.redirect(303, '/cart');
 	});
-});
-app.get('/cart', function(req, res){
-	var cart = req.session.cart || (req.session.cart = []);
-	res.render('cart', { cart: cart });
 });
 
 /* end POST requests */
