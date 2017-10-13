@@ -1,4 +1,4 @@
-var express, formidable, app, handlebar,
+var express, formidable, app, handlebar, http,
     fortune, credentials, cartValidation;
 
 express = require('express');
@@ -6,6 +6,7 @@ fortune = require('./lib/fortune.js');
 formidable = require('formidable');
 credentials = require('./credentials.js');
 cartValidation = require('./lib/cartValidation.js');
+http = require('http');
 
 app = express();
 
@@ -376,6 +377,21 @@ app.post('/cart/add', function(req, res, next){
 
 /* end POST requests */
 
+/* begin logging */
+switch (app.get('env')) {
+    case 'development':
+        app.use(require('morgan')('dev'));
+        break;
+    case 'production':
+        app.use(require('express-logger')({
+            path: __dirname + '/log/requests.log'
+        }));
+        break;
+    default:
+        break;
+}
+/* end logging */
+
 // 404 catch-all handler (middleware)
 app.use(function(req, res, next) {
 	res.status(404);
@@ -389,7 +405,18 @@ app.use(function(err, req, res, next) {
 	res.render('500');
 });
 
-app.listen(app.get('port'), function() {
-  console.log( 'Express started on http://localhost:' +
-    app.get('port') + '; press Ctrl-C to terminate.' );
-});
+function startServer() {
+    server = http.createServer(app).listen(app.get('port'), function(){
+      console.log( 'Express started in ' + app.get('env') +
+        ' mode on http://localhost:' + app.get('port') +
+        '; press Ctrl-C to terminate.' );
+    });
+}
+
+if(require.main === module){
+    // application run directly; start app server
+    startServer();
+} else {
+    // application imported as a module via "require": export function to create server
+    module.exports = startServer;
+}
