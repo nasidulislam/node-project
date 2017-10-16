@@ -154,6 +154,47 @@ var VALID_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z
 
 /* begin MIDDLEWARE setup */
 
+// create domain to handle errors
+app.use(function(req, res, next) {
+    var domain = require('domain').create();
+
+    domain.on('error', function(error) {
+        console.error('DOMAIN ERROR CAUGHT\n', error.stack);
+
+        try {
+            // failsafe shutdown in 5 seconds
+            setTimeout(function() {
+                console.error('Failsafe shutdown initiated !!');
+                process.exit(1);
+            }, 5000);
+
+            // disconnect from cluster and stop taking new requests
+            var worker = require('cluster').worker;
+
+            if(worker) worker.disconnect();
+            server.close();
+
+            try {
+                // attempt to use Express error route
+                next(error);
+            } catch(error) {
+                // if Express error route fails, use vanilla Node response
+                console.error('Express error mechanism failed.\n', error.stack);
+                res.statusCode = 500;
+                res.setHeader('content-type', 'text/plain');
+                res.end('Server error');
+            }
+        } catch(error) {
+            console.error('Unable to send 500 response\n', error.stack);
+        }
+    });
+
+    // add request and response objects to domain and execute remaining chain
+    domain.add(req);
+    domain.add(res);
+    domain.run(next);
+});
+
 // weather
 app.use(function(req, res, next) {
 	if(!res.locals.partials) res.locals.partials = {};
