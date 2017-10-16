@@ -1,33 +1,31 @@
-var cluster;
-
-cluster = require('cluster');
+var cluster = require('cluster');
 
 function startWorker() {
     var worker = cluster.fork();
-    console.log('CLUSTER: worker %d started', worker.id);
+    console.log('CLUSTER: Worker %d started', worker.id);
 }
 
-if(cluster.isMaster) {
-    require('os').cpus().forEach(function() {
+if(cluster.isMaster){
+
+    require('os').cpus().forEach(function(){
+	    startWorker();
+    });
+
+    // log any workers that disconnect; if a worker disconnects, it
+    // should then exit, so we'll wait for the exit event to spawn
+    // a new worker to replace it
+    cluster.on('disconnect', function(worker){
+        console.log('CLUSTER: Worker %d disconnected from the cluster.', worker.id);
+    });
+
+    // when a worker dies (exits), create a worker to replace it
+    cluster.on('exit', function(worker, code, signal){
+        console.log('CLUSTER: Worker %d died with exit code %d (%s)', worker.id, code, signal);
         startWorker();
     });
 
-    /* log any worker that disconnects
-        if disconnected, then wait for next worker to spawn
-        and replace it
-    */
-
-    // log information about worker that disconnected
-    cluster.on('disconnect', function(worker) {
-        console.log('CLUSTER: worker %d disconnected from cluster.', worker.id);
-    });
-
-    // create new worker to replace the one that disconnected
-    cluster.on('exit', function(worker, code, signal) {
-        console.log('CLUSTER: worker %d disconnected with exit code %d (%s)', worker.id, code, signal);
-        startWorker();
-    });
 } else {
-    // start app on worker
-    require('./meadowlark.js');
+    // start our app on worker; see meadowlark.js
+    require('./meadowlark.js')();
+
 }
