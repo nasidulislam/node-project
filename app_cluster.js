@@ -4,7 +4,7 @@ cluster = require('cluster');
 
 function startWorker() {
     var worker = cluster.fork();
-    console.log('CLUSTER: worked %d started', worker.id);
+    console.log('CLUSTER: worker %d started', worker.id);
 }
 
 if(cluster.isMaster) {

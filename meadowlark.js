@@ -190,13 +190,6 @@ app.get('/about', function(req,res) {
 	} );
 });
 
-// app.get('/tours/hood-river', function(req, res) {
-// 	res.render('tours/hood-river');
-// });
-//
-// app.get('/tours/oregon-coast', function(req, res) {
-// 	res.render('tours/oregon-coast');
-// });
 app.get('/tours/:tour', function(req, res, next){
 	Product.findOne({ category: 'tour', slug: req.params.tour }, function(err, tour){
 		if(err) return next(err);
@@ -220,10 +213,6 @@ app.get('/tours/request-group-rate', function(req, res) {
 app.get('/newsletter', function(req, res) {
     res.render('newsletter', {csrf: 'dummy CSRF value'});
 });
-
-// app.get('/tours', function(req, res) {
-// 	res.render('tours/tours-home');
-// });
 
 app.get('/thank-you', function(req, res) {
 	res.render('thank-you');
@@ -406,7 +395,7 @@ app.use(function(err, req, res, next) {
 });
 
 function startServer() {
-    server = http.createServer(app).listen(app.get('port'), function(){
+    var server = http.createServer(app).listen(app.get('port'), function(){
       console.log( 'Express started in ' + app.get('env') +
         ' mode on http://localhost:' + app.get('port') +
         '; press Ctrl-C to terminate.' );
