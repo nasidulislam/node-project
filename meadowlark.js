@@ -1,4 +1,4 @@
-var express, formidable, app, handlebar, http,
+var express, formidable, app, handlebar, http, fs,
     fortune, credentials, cartValidation;
 
 express = require('express');
@@ -7,6 +7,7 @@ formidable = require('formidable');
 credentials = require('./credentials.js');
 cartValidation = require('./lib/cartValidation.js');
 http = require('http');
+fs = require('fs');
 
 app = express();
 
@@ -147,6 +148,19 @@ Product.findOne = function(conditions, fields, options, cb){
 		cb(err, products && products.length ? products[0] : null);
 	});
 };
+
+// make sure data directory exists
+var dataDir, vacationPhotoDir;
+
+dataDir = __dirname + '/data';
+vacationPhotoDir = dataDir + '/vacation-photo';
+
+fs.existsSync(dataDir || fs.mkdirSync(dataDir));
+fs.existsSync(vacationPhotoDir || fs.mkdirSync(vacationPhotoDir));
+
+function saveContestEntry(contestName, email, year, month, photoPath) {
+    // TODO...this will come later
+}
 
 var VALID_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
@@ -328,14 +342,34 @@ app.post('/process', function(req, res) {
 });
 
 app.post('/contest/vacation-photo/:year/:month', function(req, res){
-    var form = new formidable.IncomingForm();
-    form.parse(req, function(err, fields, files){
-        if(err) return res.redirect(303, '/error');
-        console.log('received fields:');
-        console.log(fields);
-        console.log('received files:');
-        console.log(files);
-        res.redirect(303, '/thank-you');
+    var form, photo, dir, path;
+
+    form = new formidable.IncomingForm();
+    form.parse(req, function(err, fields, files) {
+        if(err) {
+            res.session.flash = {
+                type: 'danger',
+                intro: 'Oops !!',
+                message: 'There was an error processing your submission. Please try again.'
+            };
+
+            return res.redirect(303, '/contest/vacation-photo');
+        }
+
+        photo = files.photo;
+        dir = vacationPhotoDir + '/' + Date.now();
+        path = dir + '/' + photo.name;
+
+        fs.mkdirSync(dir);
+        fs.renameSync(photo.path, path);
+        saveContestEntry('vacation-photo', fields.email, req.params.year, req.params.month, path);
+        req.session.flash = {
+            type: 'success',
+            intro: 'Good luck!',
+            message: 'You have been entered into the contest.',
+        };
+
+        return. res.redirect(303, '/contest/vacation-photo/entries');
     });
 });
 
