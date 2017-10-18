@@ -1,14 +1,17 @@
-var express, formidable, app, handlebar, http, fs,
-    fortune, credentials, cartValidation, mongoose;
+var express, formidable, app, handlebar, http, fs, mongoose,
+    fortune, credentials, cartValidation, Vacation;
 
+// app configs
 express = require('express');
-fortune = require('./lib/fortune.js');
 formidable = require('formidable');
-credentials = require('./credentials.js');
-cartValidation = require('./lib/cartValidation.js');
 http = require('http');
 fs = require('fs');
 mongoose = require('mongoose');
+
+// libs and models
+fortune = require('./lib/fortune.js');
+credentials = require('./credentials.js');
+cartValidation = require('./lib/cartValidation.js');
 
 app = express();
 
@@ -172,10 +175,10 @@ var options = {
 
 switch(app.get('env')) {
     case 'development':
-        mongooose.connect(credentials.mongo.development.connectionString, options);
+        mongoose.connect(credentials.mongo.development.uri, options);
         break;
     case 'production':
-        mongooose.connect(credentials.mongo.production.connectionString, options);
+        mongoose.connect(credentials.mongo.production.uri, options);
         break;
     default:
         throw new Error('Unknown execution environment: ' + app.get('env'));
