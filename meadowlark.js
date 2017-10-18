@@ -1,12 +1,20 @@
-var express, formidable, app, handlebar, http,
-    fortune, credentials, cartValidation;
+var express, formidable, app, handlebar, http, fs, mongoose, mongoSessionStore, sessionStore,
+    fortune, credentials, cartValidation, Vacation, vacationInSeasonListener;
 
+// app configs
 express = require('express');
-fortune = require('./lib/fortune.js');
 formidable = require('formidable');
+http = require('http');
+fs = require('fs');
+mongoose = require('mongoose');
+mongoSessionStore = require('session-mongoose')(require('connect'));
+
+// libs and models
+fortune = require('./lib/fortune.js');
 credentials = require('./credentials.js');
 cartValidation = require('./lib/cartValidation.js');
-http = require('http');
+Vacation = require('./models/vacation.js');
+vacationInSeasonListener = require('./models/vacationInSeasonListener.js');
 
 app = express();
 
@@ -34,7 +42,8 @@ app.use(require('cookie-parser')(credentials.cookieSecret));
 app.use(require('express-session')({
     resave: false,
     saveUninitialized: false,
-    secret: credentials.cookieSecret
+    secret: credentials.cookieSecret,
+    store: sessionStore
 }));
 
 /* set 'showTests' context property if the querystring contains test=1 */
@@ -81,74 +90,99 @@ NewsletterSignup.prototype.save = function(cb){
 	cb();
 };
 
-// mocking product database
-function Product(){
+// make sure data directory exists
+var dataDir, vacationPhotoDir;
+
+dataDir = __dirname + '/data';
+vacationPhotoDir = dataDir + '/vacation-photo';
+
+fs.existsSync(dataDir || fs.mkdirSync(dataDir));
+fs.existsSync(vacationPhotoDir || fs.mkdirSync(vacationPhotoDir));
+
+function saveContestEntry(contestName, email, year, month, photoPath) {
+    // TODO...this will come later
 }
-Product.find = function(conditions, fields, options, cb){
-	if(typeof conditions==='function') {
-		cb = conditions;
-		conditions = {};
-		fields = null;
-		options = {};
-	} else if(typeof fields==='function') {
-		cb = fields;
-		fields = null;
-		options = {};
-	} else if(typeof options==='function') {
-		cb = options;
-		options = {};
-	}
-	var products = [
-		{
-			name: 'Hood River Tour',
-			slug: 'hood-river',
-			category: 'tour',
-			maximumGuests: 15,
-			sku: 723,
-		},
-		{
-			name: 'Oregon Coast Tour',
-			slug: 'oregon-coast',
-			category: 'tour',
-			maximumGuests: 10,
-			sku: 446,
-		},
-		{
-			name: 'Rock Climbing in Bend',
-			slug: 'rock-climbing/bend',
-			category: 'adventure',
-			requiresWaiver: true,
-			maximumGuests: 4,
-			sku: 944,
-		}
-	];
-	cb(null, products.filter(function(p) {
-		if(conditions.category && p.category!==conditions.category) return false;
-		if(conditions.slug && p.slug!==conditions.slug) return false;
-		if(isFinite(conditions.sku) && p.sku!==Number(conditions.sku)) return false;
-		return true;
-	}));
-};
-Product.findOne = function(conditions, fields, options, cb){
-	if(typeof conditions==='function') {
-		cb = conditions;
-		conditions = {};
-		fields = null;
-		options = {};
-	} else if(typeof fields==='function') {
-		cb = fields;
-		fields = null;
-		options = {};
-	} else if(typeof options==='function') {
-		cb = options;
-		options = {};
-	}
-	Product.find(conditions, fields, options, function(err, products){
-		cb(err, products && products.length ? products[0] : null);
-	});
+
+// creating database connection
+var options = {
+    server: {
+        socketOptions: { keepAlive: 1 }
+    }
 };
 
-var VALID_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+switch(app.get('env')) {
+    case 'development':
+        mongoose.connect(credentials.mongo.development.uri, options);
+        break;
+    case 'production':
+        mongoose.connect(credentials.mongo.production.uri, options);
+        break;
+    default:
+        throw new Error('Unknown execution environment: ' + app.get('env'));
+}
+
+// seeding initial vacation data
+Vacation.find(function(err, vacations){
+    if(vacations.length) return;
+
+    new Vacation({
+        name: 'Hood River Day Trip',
+        slug: 'hood-river-day-trip',
+        category: 'Day Trip',
+        sku: 'HR199',
+        description: 'Spend a day sailing on the Columbia and ' +
+            'enjoying craft beers in Hood River!',
+        priceInCents: 9995,
+        tags: ['day trip', 'hood river', 'sailing', 'windsurfing', 'breweries'],
+        inSeason: true,
+        maximumGuests: 16,
+        available: true,
+        packagesSold: 0,
+    }).save();
+
+    new Vacation({
+        name: 'Oregon Coast Getaway',
+        slug: 'oregon-coast-getaway',
+        category: 'Weekend Getaway',
+        sku: 'OC39',
+        description: 'Enjoy the ocean air and quaint coastal towns!',
+        priceInCents: 269995,
+        tags: ['weekend getaway', 'oregon coast', 'beachcombing'],
+        inSeason: false,
+        maximumGuests: 8,
+        available: true,
+        packagesSold: 0,
+    }).save();
+
+    new Vacation({
+        name: 'Rock Climbing in Bend',
+        slug: 'rock-climbing-in-bend',
+        category: 'Adventure',
+        sku: 'B99',
+        description: 'Experience the thrill of rock climbing in the high desert.',
+        priceInCents: 289995,
+        tags: ['weekend getaway', 'bend', 'high desert', 'rock climbing', 'hiking', 'skiing'],
+        inSeason: true,
+        requiresWaiver: true,
+        maximumGuests: 4,
+        available: false,
+        packagesSold: 0,
+        notes: 'The tour guide is currently recovering from a skiing accident.',
+    }).save();
+});
+
+sessionStore = new mongoSessionStore({
+    url: credentials.mongo[app.get('env')].uri
+});
+
+function convertFromUSD(value, currency){
+    switch(currency){
+    	case 'USD': return value * 1;
+        case 'GBP': return value * 0.6;
+        case 'BTC': return value * 0.0023707918444761;
+        default: return NaN;
+    }
+}
 
 /* end Miscellaneous functions */
 
@@ -259,12 +293,11 @@ app.get('/thank-you', function(req, res) {
 	res.render('thank-you');
 });
 
-app.get('/contest/vacation-photo', function(req,res) {
-    var now = new Date();
-    res.render('contest/vacation-photo', {
+app.get('/contest/vacation-photo', function(req, res){
+	var now = new Date();
+	res.render('contest/vacation-photo', {
         year: now.getFullYear(),
-        month: now.getMonth()
-    });
+        month: now.getMonth() });
 });
 
 app.get('/nursery-rhyme', function(req, res){
@@ -309,6 +342,65 @@ app.get('/cart', function(req, res){
 	res.render('cart', { cart: cart });
 });
 
+app.get('/vacations', function(req, res) {
+    Vacation.find({
+        available: true
+    }, function(error, vacations) {
+        var currency, context;
+
+        currency = req.session.currency || 'USD';
+        context = {
+            currency: currency,
+            vacations: vacations.map(function(vacation) {
+                return {
+                    sku: vacation.sku,
+                    name: vacation.name,
+                    description: vacation.description,
+                    inSeason: vacation.inSeason,
+                    price: convertFromUSD(vacation.priceInCents/100, currency),
+                    qty: vacation.qty,
+                };
+            })
+        };
+
+        switch(currency){
+	    	case 'USD': context.currencyUSD = 'selected'; break;
+	        case 'GBP': context.currencyGBP = 'selected'; break;
+	        case 'BTC': context.currencyBTC = 'selected'; break;
+	    }
+
+        res.render('vacations', context);
+    });
+});
+
+app.get('/notify-me-when-in-season', function(req, res) {
+    res.render('notify-me-when-in-season', {
+        sku: req.query.sku
+    });
+});
+
+app.get('/cart/add', function(req, res, next){
+	var cart = req.session.cart || (req.session.cart = { items: [] });
+	Vacation.findOne({ sku: req.query.sku }, function(err, vacation){
+		if(err) return next(err);
+		if(!vacation) return next(new Error('Unknown vacation SKU: ' + req.query.sku));
+		cart.items.push({
+			vacation: vacation,
+			guests: req.body.guests || 1,
+		});
+		res.redirect(303, '/cart');
+	});
+});
+
+app.get('/contest/vacation-photo/entries', function(req, res){
+	res.render('contest/vacation-photo/entries');
+});
+
+app.get('/set-currency/:currency', function(req, res) {
+    req.session.currency = req.params.currency;
+    return res.redirect(303, '/vacations');
+})
+
 /* end GET requests / server side routing */
 
 /* begin POST requests */
@@ -330,12 +422,28 @@ app.post('/process', function(req, res) {
 app.post('/contest/vacation-photo/:year/:month', function(req, res){
     var form = new formidable.IncomingForm();
     form.parse(req, function(err, fields, files){
-        if(err) return res.redirect(303, '/error');
-        console.log('received fields:');
-        console.log(fields);
-        console.log('received files:');
-        console.log(files);
-        res.redirect(303, '/thank-you');
+        if(err) {
+            req.session.flash = {
+                type: 'danger',
+                intro: 'Oops!',
+                message: 'There was an error processing your submission. ' +
+                    'Pelase try again.',
+            };
+            return res.redirect(303, '/contest/vacation-photo');
+        }
+        var photo = files.photo;
+        var dir = vacationPhotoDir + '/' + Date.now();
+        var path = dir + '/' + photo.name;
+        fs.mkdirSync(dir);
+        fs.renameSync(photo.path, dir + '/' + photo.name);
+        saveContestEntry('vacation-photo', fields.email,
+            req.params.year, req.params.month, path);
+        req.session.flash = {
+            type: 'success',
+            intro: 'Good luck!',
+            message: 'You have been entered into the contest.',
+        };
+        return res.redirect(303, '/contest/vacation-photo/entries');
     });
 });
 
@@ -403,6 +511,56 @@ app.post('/cart/add', function(req, res, next){
 		});
 		res.redirect(303, '/cart');
 	});
+});
+
+app.post('/vacations', function(req, res){
+    Vacation.findOne({ sku: req.body.purchaseSku }, function(err, vacation){
+        if(err || !vacation) {
+            req.session.flash = {
+                type: 'warning',
+                intro: 'Ooops!',
+                message: 'Something went wrong with your reservation; ' +
+                    'please <a href="/contact">contact us</a>.',
+            };
+            return res.redirect(303, '/vacations');
+        }
+        vacation.packagesSold++;
+        vacation.save();
+        req.session.flash = {
+            type: 'success',
+            intro: 'Thank you!',
+            message: 'Your vacation has been booked.',
+        };
+        res.redirect(303, '/vacations');
+    });
+});
+
+app.post('/notify-me-when-in-season', function(req, res){
+    VacationInSeasonListener.update(
+        { email: req.body.email },
+        { $push: { skus: req.body.sku } },
+        { upsert: true },
+	    function(err){
+	        if(err) {
+	        	console.error(err.stack);
+	            req.session.flash = {
+	                type: 'danger',
+	                intro: 'Ooops!',
+	                message: 'There was an error processing your request.',
+	            };
+
+	            return res.redirect(303, '/vacations');
+	        }
+
+	        req.session.flash = {
+	            type: 'success',
+	            intro: 'Thank you!',
+	            message: 'You will be notified when this vacation is in season.',
+	        };
+
+	        return res.redirect(303, '/vacations');
+	    }
+	);
 });
 
 /* end POST requests */

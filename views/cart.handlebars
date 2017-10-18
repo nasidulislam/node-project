@@ -14,11 +14,13 @@
 		</tr>
 	</thead>
 	<tbody>
-		{{#each cart}}
+		{{#each cart.items}}
 			<tr>
-				<td>{{product.name}}</td>
+				<td>{{vacation.name}}</td>
 				<td>{{guests}}</td>
 			</tr>
 		{{/each}}
 	</tbody>
 </table>
+
+<a class="btn btn-primary" href="/cart/checkout">Checkout</a>
