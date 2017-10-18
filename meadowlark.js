@@ -1,4 +1,4 @@
-var express, formidable, app, handlebar, http, fs, mongoose,
+var express, formidable, app, handlebar, http, fs, mongoose, mongoSessionStore, sessionStore,
     fortune, credentials, cartValidation, Vacation, vacationInSeasonListener;
 
 // app configs
@@ -7,6 +7,7 @@ formidable = require('formidable');
 http = require('http');
 fs = require('fs');
 mongoose = require('mongoose');
+mongoSessionStore = require('session-mongoose')(require('connect'));
 
 // libs and models
 fortune = require('./lib/fortune.js');
@@ -41,7 +42,8 @@ app.use(require('cookie-parser')(credentials.cookieSecret));
 app.use(require('express-session')({
     resave: false,
     saveUninitialized: false,
-    secret: credentials.cookieSecret
+    secret: credentials.cookieSecret,
+    store: sessionStore
 }));
 
 /* set 'showTests' context property if the querystring contains test=1 */
@@ -169,7 +171,18 @@ Vacation.find(function(err, vacations){
     }).save();
 });
 
-var VALID_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+sessionStore = new mongoSessionStore({
+    url: credentials.mongo[app.get('env')].uri
+});
+
+function convertFromUSD(value, currency){
+    switch(currency){
+    	case 'USD': return value * 1;
+        case 'GBP': return value * 0.6;
+        case 'BTC': return value * 0.0023707918444761;
+        default: return NaN;
+    }
+}
 
 /* end Miscellaneous functions */
 
@@ -344,11 +357,17 @@ app.get('/vacations', function(req, res) {
                     name: vacation.name,
                     description: vacation.description,
                     inSeason: vacation.inSeason,
-                    price: vacation.getDisplayPrice(),
+                    price: convertFromUSD(vacation.priceInCents/100, currency),
                     qty: vacation.qty,
                 };
             })
         };
+
+        switch(currency){
+	    	case 'USD': context.currencyUSD = 'selected'; break;
+	        case 'GBP': context.currencyGBP = 'selected'; break;
+	        case 'BTC': context.currencyBTC = 'selected'; break;
+	    }
 
         res.render('vacations', context);
     });
@@ -376,6 +395,11 @@ app.get('/cart/add', function(req, res, next){
 app.get('/contest/vacation-photo/entries', function(req, res){
 	res.render('contest/vacation-photo/entries');
 });
+
+app.get('/set-currency/:currency', function(req, res) {
+    req.session.currency = req.params.currency;
+    return res.redirect(303, '/vacations');
+})
 
 /* end GET requests / server side routing */
 
