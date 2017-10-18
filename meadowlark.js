@@ -1,5 +1,5 @@
 var express, formidable, app, handlebar, http, fs,
-    fortune, credentials, cartValidation;
+    fortune, credentials, cartValidation, mongoose;
 
 express = require('express');
 fortune = require('./lib/fortune.js');
@@ -8,6 +8,7 @@ credentials = require('./credentials.js');
 cartValidation = require('./lib/cartValidation.js');
 http = require('http');
 fs = require('fs');
+mongoose = require('mongoose');
 
 app = express();
 
@@ -160,6 +161,24 @@ fs.existsSync(vacationPhotoDir || fs.mkdirSync(vacationPhotoDir));
 
 function saveContestEntry(contestName, email, year, month, photoPath) {
     // TODO...this will come later
+}
+
+// creating database connection
+var options = {
+    server: {
+        socketOptions: { keepAlive: 1 }
+    }
+};
+
+switch(app.get('env')) {
+    case 'development':
+        mongooose.connect(credentials.mongo.development.connectionString, options);
+        break;
+    case 'production':
+        mongooose.connect(credentials.mongo.production.connectionString, options);
+        break;
+    default:
+        throw new Error('Unknown execution environment: ' + app.get('env'));
 }
 
 var VALID_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
@@ -369,7 +388,7 @@ app.post('/contest/vacation-photo/:year/:month', function(req, res){
             message: 'You have been entered into the contest.',
         };
 
-        return. res.redirect(303, '/contest/vacation-photo/entries');
+        return res.redirect(303, '/contest/vacation-photo/entries');
     });
 });
 
