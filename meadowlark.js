@@ -12,6 +12,7 @@ mongoose = require('mongoose');
 fortune = require('./lib/fortune.js');
 credentials = require('./credentials.js');
 cartValidation = require('./lib/cartValidation.js');
+Vacation = require('./models/vacation.js');
 
 app = express();
 
@@ -86,73 +87,6 @@ NewsletterSignup.prototype.save = function(cb){
 	cb();
 };
 
-// mocking product database
-function Product(){
-}
-Product.find = function(conditions, fields, options, cb){
-	if(typeof conditions==='function') {
-		cb = conditions;
-		conditions = {};
-		fields = null;
-		options = {};
-	} else if(typeof fields==='function') {
-		cb = fields;
-		fields = null;
-		options = {};
-	} else if(typeof options==='function') {
-		cb = options;
-		options = {};
-	}
-	var products = [
-		{
-			name: 'Hood River Tour',
-			slug: 'hood-river',
-			category: 'tour',
-			maximumGuests: 15,
-			sku: 723,
-		},
-		{
-			name: 'Oregon Coast Tour',
-			slug: 'oregon-coast',
-			category: 'tour',
-			maximumGuests: 10,
-			sku: 446,
-		},
-		{
-			name: 'Rock Climbing in Bend',
-			slug: 'rock-climbing/bend',
-			category: 'adventure',
-			requiresWaiver: true,
-			maximumGuests: 4,
-			sku: 944,
-		}
-	];
-	cb(null, products.filter(function(p) {
-		if(conditions.category && p.category!==conditions.category) return false;
-		if(conditions.slug && p.slug!==conditions.slug) return false;
-		if(isFinite(conditions.sku) && p.sku!==Number(conditions.sku)) return false;
-		return true;
-	}));
-};
-Product.findOne = function(conditions, fields, options, cb){
-	if(typeof conditions==='function') {
-		cb = conditions;
-		conditions = {};
-		fields = null;
-		options = {};
-	} else if(typeof fields==='function') {
-		cb = fields;
-		fields = null;
-		options = {};
-	} else if(typeof options==='function') {
-		cb = options;
-		options = {};
-	}
-	Product.find(conditions, fields, options, function(err, products){
-		cb(err, products && products.length ? products[0] : null);
-	});
-};
-
 // make sure data directory exists
 var dataDir, vacationPhotoDir;
 
@@ -183,6 +117,56 @@ switch(app.get('env')) {
     default:
         throw new Error('Unknown execution environment: ' + app.get('env'));
 }
+
+// seeding initial vacation data
+Vacation.find(function(err, vacations){
+    if(vacations.length) return;
+
+    new Vacation({
+        name: 'Hood River Day Trip',
+        slug: 'hood-river-day-trip',
+        category: 'Day Trip',
+        sku: 'HR199',
+        description: 'Spend a day sailing on the Columbia and ' +
+            'enjoying craft beers in Hood River!',
+        priceInCents: 9995,
+        tags: ['day trip', 'hood river', 'sailing', 'windsurfing', 'breweries'],
+        inSeason: true,
+        maximumGuests: 16,
+        available: true,
+        packagesSold: 0,
+    }).save();
+
+    new Vacation({
+        name: 'Oregon Coast Getaway',
+        slug: 'oregon-coast-getaway',
+        category: 'Weekend Getaway',
+        sku: 'OC39',
+        description: 'Enjoy the ocean air and quaint coastal towns!',
+        priceInCents: 269995,
+        tags: ['weekend getaway', 'oregon coast', 'beachcombing'],
+        inSeason: false,
+        maximumGuests: 8,
+        available: true,
+        packagesSold: 0,
+    }).save();
+
+    new Vacation({
+        name: 'Rock Climbing in Bend',
+        slug: 'rock-climbing-in-bend',
+        category: 'Adventure',
+        sku: 'B99',
+        description: 'Experience the thrill of rock climbing in the high desert.',
+        priceInCents: 289995,
+        tags: ['weekend getaway', 'bend', 'high desert', 'rock climbing', 'hiking', 'skiing'],
+        inSeason: true,
+        requiresWaiver: true,
+        maximumGuests: 4,
+        available: false,
+        packagesSold: 0,
+        notes: 'The tour guide is currently recovering from a skiing accident.',
+    }).save();
+});
 
 var VALID_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
