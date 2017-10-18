@@ -280,12 +280,11 @@ app.get('/thank-you', function(req, res) {
 	res.render('thank-you');
 });
 
-app.get('/contest/vacation-photo', function(req,res) {
-    var now = new Date();
-    res.render('contest/vacation-photo', {
+app.get('/contest/vacation-photo', function(req, res){
+	var now = new Date();
+	res.render('contest/vacation-photo', {
         year: now.getFullYear(),
-        month: now.getMonth()
-    });
+        month: now.getMonth() });
 });
 
 app.get('/nursery-rhyme', function(req, res){
@@ -374,6 +373,10 @@ app.get('/cart/add', function(req, res, next){
 	});
 });
 
+app.get('/contest/vacation-photo/entries', function(req, res){
+	res.render('contest/vacation-photo/entries');
+});
+
 /* end GET requests / server side routing */
 
 /* begin POST requests */
@@ -393,33 +396,29 @@ app.post('/process', function(req, res) {
 });
 
 app.post('/contest/vacation-photo/:year/:month', function(req, res){
-    var form, photo, dir, path;
-
-    form = new formidable.IncomingForm();
-    form.parse(req, function(err, fields, files) {
+    var form = new formidable.IncomingForm();
+    form.parse(req, function(err, fields, files){
         if(err) {
-            res.session.flash = {
+            req.session.flash = {
                 type: 'danger',
-                intro: 'Oops !!',
-                message: 'There was an error processing your submission. Please try again.'
+                intro: 'Oops!',
+                message: 'There was an error processing your submission. ' +
+                    'Pelase try again.',
             };
-
             return res.redirect(303, '/contest/vacation-photo');
         }
-
-        photo = files.photo;
-        dir = vacationPhotoDir + '/' + Date.now();
-        path = dir + '/' + photo.name;
-
+        var photo = files.photo;
+        var dir = vacationPhotoDir + '/' + Date.now();
+        var path = dir + '/' + photo.name;
         fs.mkdirSync(dir);
-        fs.renameSync(photo.path, path);
-        saveContestEntry('vacation-photo', fields.email, req.params.year, req.params.month, path);
+        fs.renameSync(photo.path, dir + '/' + photo.name);
+        saveContestEntry('vacation-photo', fields.email,
+            req.params.year, req.params.month, path);
         req.session.flash = {
             type: 'success',
             intro: 'Good luck!',
             message: 'You have been entered into the contest.',
         };
-
         return res.redirect(303, '/contest/vacation-photo/entries');
     });
 });
