@@ -85,7 +85,8 @@ function getWeatherData(){
 }
 
 // mocked NewsletterSignup
-function NewsletterSignup(){}
+function NewsletterSignup(){
+}
 NewsletterSignup.prototype.save = function(cb){
 	cb();
 };
@@ -184,6 +185,8 @@ function convertFromUSD(value, currency){
     }
 }
 
+var VALID_EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
 /* end Miscellaneous functions */
 
 /* begin MIDDLEWARE setup */
@@ -281,8 +284,8 @@ app.get('/adventures/:subcat/:name', function(req, res, next){
 	});
 });
 
-app.get('/tours/request-group-rate', function(req, res) {
-	res.render('tours/request-group-rate');
+app.get('/request-group-rate', function(req, res){
+	res.render('request-group-rate');
 });
 
 app.get('/newsletter', function(req, res) {
@@ -373,6 +376,14 @@ app.get('/vacations', function(req, res) {
     });
 });
 
+app.get('/vacation/:vacation', function(req, res, next){
+	Vacation.findOne({ slug: req.params.vacation }, function(err, vacation){
+		if(err) return next(err);
+		if(!vacation) return next();
+		res.render('vacation', { vacation: vacation });
+	});
+});
+
 app.get('/notify-me-when-in-season', function(req, res) {
     res.render('notify-me-when-in-season', {
         sku: req.query.sku
@@ -399,6 +410,38 @@ app.get('/contest/vacation-photo/entries', function(req, res){
 app.get('/set-currency/:currency', function(req, res) {
     req.session.currency = req.params.currency;
     return res.redirect(303, '/vacations');
+});
+
+app.get('/cart/checkout', function(req, res, next){
+	var cart = req.session.cart;
+	if(!cart) next();
+	res.render('cart-checkout');
+});
+
+app.get('/cart/thank-you', function(req, res){
+	res.render('cart-thank-you', { cart: req.session.cart });
+});
+
+app.get('/email/cart/thank-you', function(req, res){
+	res.render('email/cart-thank-you', { cart: req.session.cart, layout: null });
+});
+
+app.post('/cart/checkout', function(req, res){
+	var cart, name;
+
+    cart = req.session.cart;
+	if(!cart) next(new Error('Cart does not exist.'));
+    name = req.body.name || '', email = req.body.email || '';
+
+	// assign a random cart ID; normally we would use a database ID here
+	cart.number = Math.random().toString().replace(/^0\.0*/, '');
+	cart.billing = {
+		name: name,
+		email: email
+	};
+
+    res.render('email/cart-thank-you');
+    res.render('cart-thank-you', { cart: cart });
 });
 
 /* end GET requests / server side routing */
@@ -447,57 +490,36 @@ app.post('/contest/vacation-photo/:year/:month', function(req, res){
     });
 });
 
-app.post('/newsletter', function(req, res) {
-    var name, email;
-
-    name = req.body.name || '';
-    email = req.body.email || '';
-
-    // input validation
-    if(!email.match(VALID_EMAIL_REGEX)) {
-        if(req.xhr) return res.json({
-            error: 'Invalid email address'
-        });
-
-        req.session.flash = {
-            type: 'danger',
-            intro: 'Validation error !!',
-            message: 'The email address you entered was not valid'
-        };
-
-        return res.redirect(303, '/newsletter/archive');
-    };
-
-    new NewsletterSignup({
-        name: name,
-        email: email
-    }).save(function(err) {
-        if(err) {
-            if(req.xhr) return res.json({
-                error: 'Database error.'
-            });
-
-            req.session.flash = {
-                type: 'danger',
-                intro: 'Database error !!',
-                message: 'There was an error connecting to the database; /n Try again later.'
-            };
-
-            return res.redirect(303, '/newsletter/archive');
-        };
-
-        if(req.xhr) return res.json({
-            success: true
-        });
-
-        req.session.flash = {
-            type: 'success',
-            intro: 'Thank you !!',
-            message: 'You have successfully signed up for Meadowlark Travel newsletter'
-        };
-
-        return res.redirect(303, '/newsletter/archive');
-    });
+app.post('/newsletter', function(req, res){
+	var name = req.body.name || '', email = req.body.email || '';
+	// input validation
+	if(!email.match(VALID_EMAIL_REGEX)) {
+		if(req.xhr) return res.json({ error: 'Invalid name email address.' });
+		req.session.flash = {
+			type: 'danger',
+			intro: 'Validation error!',
+			message: 'The email address you entered was  not valid.',
+		};
+		return res.redirect(303, '/newsletter/archive');
+	}
+	new NewsletterSignup({ name: name, email: email }).save(function(err){
+		if(err) {
+			if(req.xhr) return res.json({ error: 'Database error.' });
+			req.session.flash = {
+				type: 'danger',
+				intro: 'Database error!',
+				message: 'There was a database error; please try again later.',
+			};
+			return res.redirect(303, '/newsletter/archive');
+		}
+		if(req.xhr) return res.json({ success: true });
+		req.session.flash = {
+			type: 'success',
+			intro: 'Thank you!',
+			message: 'You have now been signed up for the newsletter.',
+		};
+		return res.redirect(303, '/newsletter/archive');
+	});
 });
 
 app.post('/cart/add', function(req, res, next){
@@ -536,7 +558,7 @@ app.post('/vacations', function(req, res){
 });
 
 app.post('/notify-me-when-in-season', function(req, res){
-    VacationInSeasonListener.update(
+    vacationInSeasonListener.update(
         { email: req.body.email },
         { $push: { skus: req.body.sku } },
         { upsert: true },
