@@ -399,7 +399,7 @@ app.get('/contest/vacation-photo/entries', function(req, res){
 app.get('/set-currency/:currency', function(req, res) {
     req.session.currency = req.params.currency;
     return res.redirect(303, '/vacations');
-})
+});
 
 /* end GET requests / server side routing */
 
