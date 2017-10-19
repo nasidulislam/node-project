@@ -19,7 +19,7 @@ vacationInSeasonListener = require('./models/vacationInSeasonListener.js');
 app = express();
 
 // set up handlebars view engine
-handlebars = require('express-handlebars').create({
+handlebars = require('express3-handlebars').create({
     defaultLayout:'main',
     helpers: {
         section: function(name, options){
